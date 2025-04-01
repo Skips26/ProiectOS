@@ -1,0 +1,7 @@
+Created hunt
+Added Treasure T1 with value 100
+Added Treasure T2 with value 500
+Listed treasures in hunt Hunt001
+Viewed Treasure T1
+Viewed Treasure T2
+Viewed Treasure T1
