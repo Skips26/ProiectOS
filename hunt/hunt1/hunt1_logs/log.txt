@@ -1,0 +1,9 @@
+Created hunt
+Added Treasure T1 (User: user1)
+Added Treasure T1 (User: user2)
+Added Treasure T2 (User: user3)
+Added Treasure T2 (User: user1)
+Listed treasures in hunt hunt1
+Listed treasures in hunt hunt1
+Viewed Treasure T1
+Listed treasures in hunt hunt1

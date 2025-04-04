@@ -4,6 +4,8 @@
 #include <direct.h> // For _mkdir
 #include <sys/stat.h> // For _stat
 #include <windows.h> // For Windows API
+#include <time.h>
+
 
 #define MAX_STRING 256
 
@@ -65,57 +67,31 @@ void add_treasure(const char *hunt_id, Treasure treasure) {
     printf("\n");
 
     char filename[MAX_STRING];
-    snprintf(filename, sizeof(filename), "hunt/%s/treasure%s.dat", hunt_id, treasure.id);
+    snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);  // Single file for all treasures
     
-    FILE *file = fopen(filename, "wb");
+    FILE *file = fopen(filename, "ab");  // Append mode
     if (!file) {
         perror("Error opening treasure file");
         return;
     }
+    
     fwrite(&treasure, sizeof(Treasure), 1, file);
     fclose(file);
     
     // Log the action
     char action[MAX_STRING];
-    snprintf(action, sizeof(action), "Added Treasure %s with value %d", treasure.id, treasure.value);
+    snprintf(action, sizeof(action), "Added Treasure %s (User: %s)", treasure.id, treasure.username);
     log_action(hunt_id, action);
     
-    printf("Treasure %s added to hunt %s.\n\n", treasure.id, hunt_id);
+    printf("Treasure %s (User: %s) added to hunt %s.\n\n", treasure.id, treasure.username, hunt_id);
 }
+
 
 void list_treasures(const char *hunt_id) {
     printf("\n");
 
-    char dir_path[MAX_STRING];
-    snprintf(dir_path, sizeof(dir_path), "hunt/%s", hunt_id);
-    
-    WIN32_FIND_DATA findFileData;
-    HANDLE hFind = FindFirstFile(strcat(dir_path, "/*.dat"), &findFileData);
-    
-    if (hFind == INVALID_HANDLE_VALUE) {
-        printf("No treasures found in hunt %s.\n", hunt_id);
-        return;
-    }
-    
-    printf("Treasures in Hunt %s:\n", hunt_id);
-    do {
-        printf("%s\n", findFileData.cFileName);
-    } while (FindNextFile(hFind, &findFileData) != 0);
-    FindClose(hFind);
-    
-    // Log the action
-    char action[MAX_STRING];
-    snprintf(action, sizeof(action), "Listed treasures in hunt %s", hunt_id);
-    log_action(hunt_id, action);
-
-    printf("\n");
-}
-
-void view_treasure(const char *hunt_id, const char *treasure_id) {
-    printf("\n");
-
     char filename[MAX_STRING];
-    snprintf(filename, sizeof(filename), "hunt/%s/treasure%s.dat", hunt_id, treasure_id);
+    snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);
     
     FILE *file = fopen(filename, "rb");
     if (!file) {
@@ -124,14 +100,65 @@ void view_treasure(const char *hunt_id, const char *treasure_id) {
     }
     
     Treasure treasure;
-    fread(&treasure, sizeof(Treasure), 1, file);
+    struct stat file_stat;
+    
+    if (stat(filename, &file_stat) == 0) {
+        printf("Hunt: %s\n", hunt_id);
+        printf("Total File Size: %I64d bytes\n", (long long)file_stat.st_size);
+        printf("Last Modified: %s\n", ctime((time_t *)&file_stat.st_mtime));
+    }
+
+    printf("\nTreasures:\n");
+    while (fread(&treasure, sizeof(Treasure), 1, file)) {
+        printf("\nID: %s\nUser: %s\nCoordinates: (%f, %f)\nClue: %s\nValue: %d\n", 
+               treasure.id, treasure.username, 
+               treasure.latitude, treasure.longitude, 
+               treasure.clue, treasure.value);
+    }
+    
+    fclose(file);
+
+    // Log the action
+    char action[MAX_STRING];
+    snprintf(action, sizeof(action), "Listed treasures in hunt %s", hunt_id);
+    log_action(hunt_id, action);
+
+    printf("\n");
+}
+
+
+void view_treasure(const char *hunt_id, const char *treasure_id) {
+    printf("\n");
+
+    char filename[MAX_STRING];
+    snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);
+    
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Error opening treasure file");
+        return;
+    }
+    
+    Treasure treasure;
+    int found = 0;
+    printf("Treasure(s) with ID: %s in Hunt %s:\n", treasure_id, hunt_id);
+    
+    while (fread(&treasure, sizeof(Treasure), 1, file)) {
+        if (strcmp(treasure.id, treasure_id) == 0) {
+            printf("\nID: %s\nUser: %s\nCoordinates: (%f, %f)\nClue: %s\nValue: %d\n", 
+                   treasure.id, treasure.username, 
+                   treasure.latitude, treasure.longitude, 
+                   treasure.clue, treasure.value);
+            found = 1;
+        }
+    }
+    
     fclose(file);
     
-    printf("ID: %s\nUser: %s\nCoordinates: (%f, %f)\nClue: %s\nValue: %d\n", 
-           treasure.id, treasure.username, 
-           treasure.latitude, treasure.longitude, 
-           treasure.clue, treasure.value);
-    
+    if (!found) {
+        printf("No treasure found with ID %s.\n", treasure_id);
+    }
+
     // Log the action
     char action[MAX_STRING];
     snprintf(action, sizeof(action), "Viewed Treasure %s", treasure_id);
@@ -140,13 +167,45 @@ void view_treasure(const char *hunt_id, const char *treasure_id) {
     printf("\n");
 }
 
+
 void remove_treasure(const char *hunt_id, const char *treasure_id) {
     printf("\n");
 
     char filename[MAX_STRING];
-    snprintf(filename, sizeof(filename), "hunt/%s/treasure%s.dat", hunt_id, treasure_id);
+    snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);
     
-    if (remove(filename) == 0) {
+    FILE *file = fopen(filename, "rb");
+    if (!file) {
+        perror("Error opening treasure file");
+        return;
+    }
+
+    char temp_filename[MAX_STRING];
+    snprintf(temp_filename, sizeof(temp_filename), "hunt/%s/temp.dat", hunt_id);
+    FILE *temp_file = fopen(temp_filename, "wb");
+    if (!temp_file) {
+        perror("Error creating temp file");
+        fclose(file);
+        return;
+    }
+    
+    Treasure treasure;
+    int removed = 0;
+    
+    while (fread(&treasure, sizeof(Treasure), 1, file)) {
+        if (strcmp(treasure.id, treasure_id) != 0) {
+            fwrite(&treasure, sizeof(Treasure), 1, temp_file);
+        } else {
+            removed = 1;
+        }
+    }
+    
+    fclose(file);
+    fclose(temp_file);
+    
+    if (removed) {
+        remove(filename);
+        rename(temp_filename, filename);
         printf("Treasure %s removed from hunt %s.\n", treasure_id, hunt_id);
         
         // Log the action
@@ -154,11 +213,13 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
         snprintf(action, sizeof(action), "Removed Treasure %s", treasure_id);
         log_action(hunt_id, action);
     } else {
-        perror("Error removing treasure");
+        printf("Treasure %s not found in hunt %s.\n", treasure_id, hunt_id);
+        remove(temp_filename);
     }
 
     printf("\n");
 }
+
 
 void create_symlink(const char *hunt_id) {
     printf("\n");

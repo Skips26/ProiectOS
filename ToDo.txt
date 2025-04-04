@@ -1,0 +1,3 @@
+add remove hunt function
+check remove tresure function
+fix symlink fuction
