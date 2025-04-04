@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <direct.h> // For _mkdir
-#include <sys/stat.h> // For _stat
-#include <windows.h> // For Windows API
-#include <io.h>      // For _unlink
-#include <direct.h>  // For _rmdir
-#include <tchar.h>   // For _TCHAR
+#include <direct.h>    // For _mkdir
+#include <sys/stat.h>  // For _stat
+#include <windows.h>   // For Windows API
+#include <io.h>        // For _unlink
+#include <direct.h>    // For _rmdir
+#include <tchar.h>     // For _TCHAR
 #include <time.h>
 
 
@@ -75,7 +75,7 @@ void add_treasure(const char *hunt_id, Treasure treasure) {
     char filename[MAX_STRING];
     snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);  // Single file for all treasures
     
-    FILE *file = fopen(filename, "ab");  // Append mode
+    FILE *file = fopen(filename, "ab");
     if (!file) {
         perror("Error opening treasure file");
         return;
