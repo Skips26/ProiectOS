@@ -4,6 +4,9 @@
 #include <direct.h> // For _mkdir
 #include <sys/stat.h> // For _stat
 #include <windows.h> // For Windows API
+#include <io.h>      // For _unlink
+#include <direct.h>  // For _rmdir
+#include <tchar.h>   // For _TCHAR
 #include <time.h>
 
 
@@ -240,6 +243,55 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
 }
 
 
+void remove_directory_recursive(const char *path) {
+    char search_path[MAX_STRING];
+    snprintf(search_path, sizeof(search_path), "%s\\*.*", path);
+
+    WIN32_FIND_DATA find_data;
+    HANDLE hFind = FindFirstFile(search_path, &find_data);
+
+    if (hFind == INVALID_HANDLE_VALUE) return;
+
+    do {
+        if (strcmp(find_data.cFileName, ".") == 0 || strcmp(find_data.cFileName, "..") == 0)
+            continue;
+
+        char full_path[MAX_STRING];
+        snprintf(full_path, sizeof(full_path), "%s\\%s", path, find_data.cFileName);
+
+        if (find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            remove_directory_recursive(full_path);
+            _rmdir(full_path);
+        } else {
+            _unlink(full_path);
+        }
+
+    } while (FindNextFile(hFind, &find_data));
+
+    FindClose(hFind);
+    _rmdir(path); // remove the root directory
+}
+
+void remove_symlink(const char *hunt_id) {
+    char symlink_path[MAX_STRING];
+    snprintf(symlink_path, sizeof(symlink_path), "log\\final_logs_%s", hunt_id);
+    _unlink(symlink_path);
+}
+
+void remove_hunt(const char *hunt_id) {
+    printf("\n");
+
+    char hunt_path[MAX_STRING];
+    snprintf(hunt_path, sizeof(hunt_path), "hunt\\%s", hunt_id);
+
+    remove_directory_recursive(hunt_path);
+
+    remove_symlink(hunt_id);
+
+    printf("Hunt %s removed successfully.\n\n", hunt_id);
+}
+
+
 void create_symlink(const char *hunt_id) {
     printf("\n");
 
@@ -269,7 +321,8 @@ int main(int argc, char *argv[]) {
            "3. list <hunt_id>\n"
            "4. view <hunt_id> <treasure_id>\n"
            "5. remove_treasure <hunt_id> <treasure_id>\n"
-           "6. create_symlink <hunt_id>\n\n");
+           "6. remove_hunt <hunt_id>\n"
+           "7. create_symlink <hunt_id>\n\n");
     }
     else if (argc < 3){
         printf("Usage: treasure_manager <command> <hunt_id> [params]\n");
@@ -298,6 +351,8 @@ int main(int argc, char *argv[]) {
         remove_treasure(hunt_id, argv[3]);
     } else if (strcmp(command, "create_symlink") == 0) {
         create_symlink(hunt_id);
+    } else if (strcmp(command, "remove_hunt") == 0) {
+        remove_hunt(hunt_id);
     } else {
         printf("Invalid command or parameters.\n");
     }
