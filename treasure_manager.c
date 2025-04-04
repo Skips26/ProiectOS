@@ -18,6 +18,7 @@ typedef struct {
     int value;
 } Treasure;
 
+
 void log_action(const char *hunt_id, const char *action) {
     char log_filename[MAX_STRING];
     snprintf(log_filename, sizeof(log_filename), "hunt/%s/%s_logs/log.txt", hunt_id, hunt_id);
@@ -30,6 +31,7 @@ void log_action(const char *hunt_id, const char *action) {
         perror("Error opening log file");
     }
 }
+
 
 void create_hunt(const char *hunt_id) {
     printf("\n");
@@ -62,6 +64,7 @@ void create_hunt(const char *hunt_id) {
         perror("Error creating hunt");
     }
 }
+
 
 void add_treasure(const char *hunt_id, Treasure treasure) {
     printf("\n");
@@ -173,51 +176,67 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
 
     char filename[MAX_STRING];
     snprintf(filename, sizeof(filename), "hunt/%s/treasures.dat", hunt_id);
-    
+
     FILE *file = fopen(filename, "rb");
     if (!file) {
         perror("Error opening treasure file");
         return;
     }
 
-    char temp_filename[MAX_STRING];
-    snprintf(temp_filename, sizeof(temp_filename), "hunt/%s/temp.dat", hunt_id);
-    FILE *temp_file = fopen(temp_filename, "wb");
-    if (!temp_file) {
-        perror("Error creating temp file");
-        fclose(file);
-        return;
+    // Read all treasures
+    Treasure treasures[100];
+    int count = 0;
+    while (fread(&treasures[count], sizeof(Treasure), 1, file)) {
+        count++;
     }
-    
-    Treasure treasure;
-    int removed = 0;
-    
-    while (fread(&treasure, sizeof(Treasure), 1, file)) {
-        if (strcmp(treasure.id, treasure_id) != 0) {
-            fwrite(&treasure, sizeof(Treasure), 1, temp_file);
-        } else {
-            removed = 1;
+    fclose(file);
+
+    // Find the index of the treasure to remove and its numeric ID
+    int indexToRemove = -1;
+    int removed_id_num = -1;
+    for (int i = 0; i < count; i++) {
+        if (strcmp(treasures[i].id, treasure_id) == 0) {
+            indexToRemove = i;
+            removed_id_num = atoi(&treasures[i].id[1]); // Extract numeric part (T3 -> 3)
+            break;
         }
     }
-    
-    fclose(file);
-    fclose(temp_file);
-    
-    if (removed) {
-        remove(filename);
-        rename(temp_filename, filename);
-        printf("Treasure %s removed from hunt %s.\n", treasure_id, hunt_id);
-        
-        // Log the action
-        char action[MAX_STRING];
-        snprintf(action, sizeof(action), "Removed Treasure %s", treasure_id);
-        log_action(hunt_id, action);
-    } else {
+
+    if (indexToRemove == -1) {
         printf("Treasure %s not found in hunt %s.\n", treasure_id, hunt_id);
-        remove(temp_filename);
+        return;
     }
 
-    printf("\n");
+    // Shift remaining elements
+    for (int i = indexToRemove; i < count - 1; i++) {
+        treasures[i] = treasures[i + 1];
+    }
+    count--; // Reduce treasure count
+
+    // Re-index: Decrease IDs **greater than** the removed one
+    for (int i = 0; i < count; i++) {
+        int current_id_num = atoi(&treasures[i].id[1]); // Extract numeric part (T4 -> 4)
+        if (current_id_num > removed_id_num) {
+            snprintf(treasures[i].id, MAX_STRING, "T%d", current_id_num - 1);
+        }
+    }
+
+    // Rewrite the updated treasures back to file
+    file = fopen(filename, "wb");
+    if (!file) {
+        perror("Error rewriting treasure file");
+        return;
+    }
+
+    fwrite(treasures, sizeof(Treasure), count, file);
+    fclose(file);
+
+    // Log action
+    char action[MAX_STRING];
+    snprintf(action, sizeof(action), "Removed Treasure %s and re-indexed remaining", treasure_id);
+    log_action(hunt_id, action);
+
+    printf("Treasure %s removed. Re-indexed remaining treasures.\n\n", treasure_id);
 }
 
 
