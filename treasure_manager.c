@@ -154,15 +154,14 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
     int removed_id_num = -1;
     int new_count = 0;
 
-    // First, filter out treasures to be removed, and track removed ID number
     for (int i = 0; i < count; i++) {
         if (strcmp(treasures[i].id, treasure_id) == 0) {
             if (removed_id_num == -1) {
-                removed_id_num = atoi(&treasures[i].id[1]); // only need this once
+                removed_id_num = atoi(&treasures[i].id[1]);
             }
-            continue; // skip this treasure
+            continue
         }
-        treasures[new_count++] = treasures[i]; // keep this one
+        treasures[new_count++] = treasures[i];
     }
 
     if (removed_id_num == -1) {
@@ -170,7 +169,6 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
         return;
     }
 
-    // Now adjust IDs of any treasures that had higher numbers
     for (int i = 0; i < new_count; i++) {
         int id_num = atoi(&treasures[i].id[1]);
         if (id_num > removed_id_num) {
@@ -178,7 +176,6 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
         }
     }
 
-    // Rewrite the file with the updated treasure list
     file = fopen(filename, "wb");
     if (!file) {
         perror("Error rewriting treasure file");
