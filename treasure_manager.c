@@ -159,7 +159,7 @@ void remove_treasure(const char *hunt_id, const char *treasure_id) {
             if (removed_id_num == -1) {
                 removed_id_num = atoi(&treasures[i].id[1]);
             }
-            continue
+            continue;
         }
         treasures[new_count++] = treasures[i];
     }
@@ -239,12 +239,24 @@ void create_symlink(const char *hunt_id) {
     char target[MAX_STRING], linkname[MAX_STRING];
     snprintf(target, sizeof(target), "hunt/%s/%s_logs/logged_hunt", hunt_id, hunt_id);
     snprintf(linkname, sizeof(linkname), "logged_hunt-%s", hunt_id);
-    symlink(target, linkname);
+
+    // Try to create symlink and handle errors
+    if (symlink(target, linkname) == -1) {
+        if (errno == EEXIST) {
+            printf("Symlink already exists: %s\n", linkname);
+        } else {
+            perror("Error creating symlink");
+        }
+        return;
+    }
 
     char action[MAX_STRING];
     snprintf(action, sizeof(action), "Created symlink: %.255s -> %.255s", linkname, target);
     log_action(hunt_id, action);
+
+    printf("Symlink created: %s -> %s\n", linkname, target);
 }
+
 
 int main(int argc, char *argv[]) {
     if(argc == 1) {
