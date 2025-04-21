@@ -12,10 +12,11 @@ projectOS/
  log/ final_logs_hunt1 (will be simlink to hunt1_logs)
 
 
-treasure_manager.exe create_hunt Hunt001
-treasure_manager.exe add Hunt001 T1 user1 34.05 -118.25 "Hidden near the old tree"
-treasure_manager.exe add Hunt001 T2 user2 40.71 -74.01 "Look under the bridge"
-treasure_manager.exe list Hunt001
-treasure_manager.exe view Hunt001 T1
-treasure_manager.exe remove_treasure Hunt001 T2
-treasure_manager.exe create_symlink Hunt001
+hunt1 T1 user1 34.05 -118.25 "Hidden near the old tree" 1000
+
+
+list_hunts
+list_treasures HUNT_ID
+view_treasure HUNT_ID TREASURE_ID
+stop_monitor
+exit
