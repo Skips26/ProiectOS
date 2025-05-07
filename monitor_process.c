@@ -3,20 +3,57 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #define CMD_FILE "/tmp/treasure_cmd.txt"
+#define HUNT_DIR "hunt"
+#define TREASURE_FILE "treasures.dat"
+#define MAX_STRING 600
 
-void handle_list_hunts(int sig) {
-    (void)sig;
-    FILE *fp = fopen(CMD_FILE, "r");
-    if (!fp) return;
+typedef struct {
+    char id[MAX_STRING];
+    char username[MAX_STRING];
+    float latitude;
+    float longitude;
+    char clue[MAX_STRING];
+    int value;
+} Treasure;
 
-    char cmd[256];
-    fgets(cmd, sizeof(cmd), fp);
-    fclose(fp);
+void handle_list_hunts() {
+    printf("\n");
+    DIR *dir = opendir(HUNT_DIR);
+    if (!dir) {
+        perror("Could not open hunt directory");
+        return;
+    }
 
-    printf("\n[Monitor] Listing hunts (simulated)...\n\n");
-    system("ls -1 hunt");
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip "." and ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        // Build path to treasures.dat
+        char treasure_path[1024];
+        snprintf(treasure_path, sizeof(treasure_path), "%s/%s/%s", HUNT_DIR, entry->d_name, TREASURE_FILE);
+
+        FILE *fp = fopen(treasure_path, "rb");
+        int count = 0;
+
+        if (fp) {
+            Treasure t;
+            while (fread(&t, sizeof(Treasure), 1, fp) == 1) {
+                count++;
+            }
+            fclose(fp);
+        }
+
+        printf("Hunt: %s | Treasures: %d\n", entry->d_name, count);
+    }
+
+    closedir(dir);
+
     printf("\n");
 }
 
