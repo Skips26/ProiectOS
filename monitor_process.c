@@ -5,10 +5,12 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 #define CMD_FILE "/tmp/treasure_cmd.txt"
 #define HUNT_DIR "hunt"
 #define TREASURE_FILE "treasures.dat"
+#define RESULT_FIFO "/tmp/treasure_results.fifo"
 #define MAX_STRING 600
 
 typedef struct {
@@ -20,81 +22,81 @@ typedef struct {
     int value;
 } Treasure;
 
-void handle_list_hunts() {
-    printf("\n");
+void write_to_fifo(const char* msg) {
+    int fd = open(RESULT_FIFO, O_WRONLY | O_NONBLOCK);
+    if (fd >= 0) {
+        write(fd, msg, strlen(msg));
+        close(fd);
+    }
+}
+
+void handle_list_hunts(int sig) {
+    (void)sig;
+    char result[4096] = "";
     DIR *dir = opendir(HUNT_DIR);
     if (!dir) {
-        perror("Could not open hunt directory");
+        snprintf(result, sizeof(result), "Could not open hunt directory\n");
+        write_to_fifo(result);
         return;
     }
-
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL) {
-        // Skip "." and ".."
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
             continue;
-
-        // Build path to treasures.dat
         char treasure_path[1024];
         snprintf(treasure_path, sizeof(treasure_path), "%s/%s/%s", HUNT_DIR, entry->d_name, TREASURE_FILE);
-
         FILE *fp = fopen(treasure_path, "rb");
         int count = 0;
-
         if (fp) {
             Treasure t;
-            while (fread(&t, sizeof(Treasure), 1, fp) == 1) {
-                count++;
-            }
+            while (fread(&t, sizeof(Treasure), 1, fp) == 1) count++;
             fclose(fp);
         }
-
-        printf("Hunt: %s | Treasures: %d\n", entry->d_name, count);
+        char line[256];
+        // Limit hunt name to 200 chars to avoid truncation
+        snprintf(line, sizeof(line), "Hunt: %.200s | Treasures: %d\n", entry->d_name, count);
+        strncat(result, line, sizeof(result)-strlen(result)-1);
     }
-
     closedir(dir);
-
-    printf("\n");
+    write_to_fifo(result);
 }
 
 void handle_list_treasures(int sig) {
     (void)sig;
     FILE *fp = fopen(CMD_FILE, "r");
     if (!fp) return;
-
     char cmd[256];
     fgets(cmd, sizeof(cmd), fp);
     fclose(fp);
-
     char hunt_id[128];
     sscanf(cmd, "list_treasures %s", hunt_id);
-
-    printf("\n[Monitor] Listing treasures for hunt '%s'\n\n", hunt_id);
-
-    char exec_cmd[256];
+    char exec_cmd[256], buf[4096];
     snprintf(exec_cmd, sizeof(exec_cmd), "./treasure_manager.exe list %s", hunt_id);
-    system(exec_cmd);
-    printf("\n");
+    FILE *p = popen(exec_cmd, "r");
+    if (!p) return;
+    size_t n = fread(buf, 1, sizeof(buf)-1, p);
+    buf[n] = 0;
+    pclose(p);
+    write_to_fifo(buf);
 }
 
 void handle_view_treasure(int sig) {
     (void)sig;
     FILE *fp = fopen(CMD_FILE, "r");
     if (!fp) return;
-
     char cmd[256];
     fgets(cmd, sizeof(cmd), fp);
     fclose(fp);
-
     char hunt_id[128], treasure_id[128];
     sscanf(cmd, "view_treasure %s %s", hunt_id, treasure_id);
-
-    printf("\n[Monitor] Viewing treasure '%s' in hunt '%s'\n\n", treasure_id, hunt_id);
-
-    char exec_cmd[512];
+    char exec_cmd[512], buf[4096];
     snprintf(exec_cmd, sizeof(exec_cmd), "./treasure_manager.exe view %s %s", hunt_id, treasure_id);
-    system(exec_cmd);
-    printf("\n");
+    FILE *p = popen(exec_cmd, "r");
+    if (!p) return;
+    size_t n = fread(buf, 1, sizeof(buf)-1, p);
+    buf[n] = 0;
+    pclose(p);
+    write_to_fifo(buf);
 }
 
 void handle_stop_monitor(int sig) {
